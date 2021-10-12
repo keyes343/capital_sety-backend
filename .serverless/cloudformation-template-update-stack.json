@@ -161,7 +161,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/capital-setu-backend/dev/1633430672537-2021-10-05T10:44:32.537Z/capital-setu-backend.zip"
+          "S3Key": "serverless/capital-setu-backend/dev/1633964213880-2021-10-11T14:56:53.880Z/capital-setu-backend.zip"
         },
         "Handler": "dist/server.handler",
         "Runtime": "nodejs12.x",
@@ -179,14 +179,14 @@
         "AppLogGroup"
       ]
     },
-    "AppLambdaVersion0riLtUewUauDTbFfUVTKLINDPT6OAyr6JM1t075qY": {
+    "AppLambdaVersionMfqxQtk5fDOBJcPbvMpZ8fQ3bUvPpS10mjUNRmUAj3U": {
       "Type": "AWS::Lambda::Version",
       "DeletionPolicy": "Retain",
       "Properties": {
         "FunctionName": {
           "Ref": "AppLambdaFunction"
         },
-        "CodeSha256": "kKc9q9oU7XxoDH9KmqPNo8A3KASvxg2LYb9VG2HcGM4="
+        "CodeSha256": "F9A8GeFu8l66BlP2iYPa6isWADL5lCBZezk/5zxOeeE="
       }
     },
     "ApiGatewayRestApi": {
@@ -404,7 +404,7 @@
         "AppLambdaPermissionApiGateway"
       ]
     },
-    "ApiGatewayDeployment1633430668978": {
+    "ApiGatewayDeployment1633964209511": {
       "Type": "AWS::ApiGateway::Deployment",
       "Properties": {
         "RestApiId": {
@@ -469,7 +469,7 @@
     "AppLambdaFunctionQualifiedArn": {
       "Description": "Current Lambda function version",
       "Value": {
-        "Ref": "AppLambdaVersion0riLtUewUauDTbFfUVTKLINDPT6OAyr6JM1t075qY"
+        "Ref": "AppLambdaVersionMfqxQtk5fDOBJcPbvMpZ8fQ3bUvPpS10mjUNRmUAj3U"
       },
       "Export": {
         "Name": "sls-capital-setu-backend-dev-AppLambdaFunctionQualifiedArn"

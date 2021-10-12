@@ -25,19 +25,32 @@ export class Auth {
     };
 
     private authenticate = (req: Request, res: Response, next: NextFunction) => {
-        const token_new = req.headers['x-access-token'] as string | undefined;
+        // const token_new = req.headers['x-access-token'] as string | undefined;
+        const token_new = req.body.token;
+        console.log(`step 1 - _authenticate()_ - OK - start`);
         if (!token_new) {
+            // console.log(`step 2 - _authenticate()_ - FAILED - no token found`);
             this.failed(res, 'no token found');
             return;
         }
+        // console.log(`step 2 - _authenticate()_ - OK - token available in payload`);
         const decoded = jwt.verify(token_new, this.secret);
+        // console.log(`step 3 - _authenticate()_ - OK - verify process done`);
         if (decoded) {
-            console.log({
-                decoded,
-            });
-
+            // console.log(`step 4 - _authenticate()_ - OK - verify clear`);
+            const { username, password } = decoded as any;
+            // console.log({
+            //     aa: 'aa',
+            //     decoded,
+            // });
+            req.payload = {
+                username,
+                password,
+            };
+            // console.log(`step 5 - _authenticate()_ - OK - calling next()`);
             next();
         } else {
+            // console.log(`step 3 - _authenticate()_ - FAIL - verify BLOCKED`);
             res.status(401).send('Login expired');
         }
     };
@@ -48,26 +61,28 @@ export class Auth {
                 body: { username, password },
                 params: { action },
             } = req;
-            console.log({ username, password, action });
-            console.log({
-                header: req.headers,
-            });
+            console.log(`step 1 - _/login:action_ - OK - action = ${action}`);
             if (action === 'getToken' && (!username || !password)) {
-                console.log('Failed ----');
+                console.log(`step 2 - _/login:action_ - FAIL - username or password missing`);
                 res.status(400).send({
                     msg: 'payload is missing username or password for /new',
                 });
             }
+            console.log(`step 2 - _/login:action_ - OK - username and password present`);
 
             const token = jwt.sign({ username, password }, this.secret, {
                 expiresIn: 86400,
             });
-            console.log({ token });
+            console.log(`step 3 - _/login:action_ - OK - token generated`);
+            // console.log({ token });
 
             try {
                 // check if user exists in database
+                // console.log(`step 4 - _/login:action_ - OK - find user in database`);
                 const found = await this.model_user.findOne({ username, password });
                 if (found) {
+                    // now verify
+                    // console.log(`step 5 - _/login:action_ - OK - FOUND exists, simply login instead`);
                     this.success(res, {
                         msg: 'user exists',
                         token,
@@ -76,13 +91,15 @@ export class Auth {
                     return;
                 }
 
-                console.log('creating user in database');
+                // console.log(`step 5 - _/login:action_ - OK - creating user in database`);
+                // console.log('creating user in database');
                 const created = await this.model_user.create({
                     username,
                     password,
                     favs: [],
                 });
                 if (created) {
+                    // console.log(`step 6 - _/login:action_ - OK - successfully created`);
                     this.success(res, {
                         msg: 'token generated',
                         token,
@@ -99,7 +116,6 @@ export class Auth {
         // this.router.post('/save', this.authenticate, async (req: Request<{}, {}, {}>, res: Response) => {});
         this.router.post(
             '/getMovieData',
-            // this.authenticate,
             async (
                 req: Request<
                     {},
@@ -110,27 +126,105 @@ export class Auth {
                 >,
                 res: Response
             ) => {
-                const { body } = req;
+                const {
+                    body: { what },
+                } = req;
+                console.log({ body: req.body });
+                if (!what) {
+                    console.log(`step 1 - _/getMovieData_ - FAIL - what not present in payload`);
+                    return;
+                }
+                console.log(`step 1 - _/getMovieData_ - OK - start`);
                 const site = 'https://api.themoviedb.org';
                 const moviedb = {
-                    popular: site + '/3/discover/movie/?api_key=afb8a329c7df90313dc254101c8b1823',
-                    latest: site + `/3/discover/movie/?api_key=afb8a329c7df90313dc254101c8b1823`,
+                    popular: site + '/3/discover/movie/?api_key=afb8a329c7df90313dc254101c8b1823&sory_by=popularity.desc',
+                    latest: site + `/3/discover/movie/?api_key=afb8a329c7df90313dc254101c8b1823&sort_by=primary_release_date.asc`,
+                    // favs : site + `/3/discover/movie/?api_key=afb8a329c7df90313dc254101c8b1823&sort_by=primary_release_date.asc`,
                 };
 
+                // const favs = (id: number) => `${site}/3/movie/${id}`;
                 try {
-                    const { status, data } = (await axios.get(moviedb[body.what])) as any;
+                    console.log(`step 2 - _/getMovieData_ - OK - not for favorite section`);
+
+                    const final_api = moviedb[what];
+                    console.log({ final_api, what });
+                    const { status, data } = (await axios.get(final_api)) as any;
+                    console.log(`step 3 - _/getMovieData_ - OK - after axios call`);
                     if (data) {
-                        // console.log({ data, status });
-                        // set_list([...data]);
-                        console.log('movie api success', body.what);
-                        this.success(res, data);
+                        console.log(`step 4 - _/getMovieData_ - OK - data present for ${what}`);
+                        // const results = data.results.length;
+                        console.log({ data });
+                        this.success(res, data.results);
                     } else {
-                        console.log('movie api failed');
+                        console.log(`step 4 - _/getMovieData_ - FAIL - failed to get data from tmdb`);
                         this.failed(res, 'failed to fetch movie data');
                     }
                 } catch (error) {
                     console.log({ error });
                 }
+            }
+        );
+        this.router.post(
+            '/getFavs',
+            this.authenticate,
+            async (
+                req: Request<
+                    {},
+                    {},
+                    {
+                        // what: 'popular' | 'latest' | 'favs';
+                    }
+                >,
+                res: Response
+            ) => {
+                const {
+                    // body: { what },
+                } = req;
+                // console.log(`step 1 - _/getFavs - OK - start`);
+                const site = 'https://api.themoviedb.org';
+                const favs = (id: number) => `${site}/3/movie/${id}`;
+
+                // console.log(`step 2 - _/getFavs - OK - logic for favorite section`);
+                // fetch only favs
+                const username = req.payload?.username;
+                const password = req.payload?.password;
+                if (username && password) {
+                    // console.log(`step 2 - _fav movies_ - OK - grabbed username and password`);
+                    const userDoc = await this.model_user.findOne({ username, password });
+                    if (userDoc) {
+                        // console.log(`step 3 - _fav movies_ - OK - user grabbed from database`);
+                        const fav_ids = userDoc.favs;
+
+                        // now get the movies of only these ids
+                        let promises: Promise<any>[] = [];
+                        fav_ids.forEach((id, i) => {
+                            const id_num = parseInt(id, 10);
+                            const link = favs(id_num) + '?api_key=afb8a329c7df90313dc254101c8b1823';
+                            const result = axios.get(link);
+                            console.log({ link });
+                            promises.push(result);
+                        });
+
+                        // execute all promises
+                        // console.log(`step 4 - _fav movies_ - OK - promises ready`);
+                        const movies = await Promise.all(promises);
+                        let movies_cleandata = movies.map((movie) => {
+                            return movie.data;
+                        });
+                        // console.log(`step 5 - _fav movies_ - OK - promises executed`);
+                        console.log({ movies_cleandata });
+                        this.success(res, movies_cleandata);
+                        return;
+                    }
+                } else {
+                    console.log('username missing from req.payload');
+                }
+
+                // const moviedb = {
+                //     popular: site + '/3/discover/movie/?api_key=afb8a329c7df90313dc254101c8b1823&sory_by=popularity.desc',
+                //     latest: site + `/3/discover/movie/?api_key=afb8a329c7df90313dc254101c8b1823&sort_by=primary_release_date.asc`,
+                //     // favs : site + `/3/discover/movie/?api_key=afb8a329c7df90313dc254101c8b1823&sort_by=primary_release_date.asc`,
+                // };
             }
         );
         this.router.post(
@@ -153,7 +247,9 @@ export class Auth {
                     body: { mongoose_id, card_id },
                     params: { action },
                 } = req;
-                console.log('/auth/fav/action = ', action);
+                console.log(`step 1 - _/fav/:action_ - OK - start`);
+                console.log('action = ', action);
+                console.log({ body: req.body });
 
                 if (!mongoose_id) {
                     console.log('failed, no mongoose id');
@@ -200,35 +296,70 @@ export class Auth {
             }
         );
 
-        this.router.get('/get_user_id', async (req: Request<{}, {}, {}>, res: Response) => {
-            const { body, params } = req;
+        this.router.post('/get_user_id', async (req: Request<{}, {}, { token: string }>, res: Response) => {
+            console.log(`step 1 - _/get_user_id_ - OK - start`);
 
-            const token_new = req.headers['x-access-token'] as string | undefined;
-            if (!token_new) {
+            const { body, params } = req;
+            const token_exists = body.token;
+            console.log({ body: req.body });
+            // const token_exists = req.headers['x-access-token'] as string | undefined;
+            if (!token_exists) {
+                console.log(`step 2 - _/get_user_id_ - FAIL - token not found`);
                 this.failed(res, 'no token found');
                 return;
             }
-            const decoded = jwt.verify(token_new, this.secret) as any;
-            if (decoded) {
-                const username = decoded.username;
-                const password = decoded.password;
-                try {
-                    const found = await this.model_user.findOne({
-                        username,
-                        password,
-                    });
-                    if (found) {
-                        this.success(res, found);
-                    } else {
-                        this.failed(res, 'no user found with this username and password');
+            // console.log(`step 2 - _/get_user_id_ - OK - token found in payload`);
+            const decoded = jwt.verify(token_exists, this.secret, async (err, decoded__) => {
+                // console.log({ decoded__, err });
+                if (decoded__) {
+                    // console.log(`step 3 - _/get_user_id_ - OK - decoded__ successfully`);
+                    const username = decoded__.username;
+                    const password = decoded__.password;
+                    try {
+                        // console.log(`step 4 - _/get_user_id_ - OK - about to search in mongooses`);
+                        const found = await this.model_user.findOne({
+                            username,
+                            password,
+                        });
+                        if (found) {
+                            // console.log(`step 5 - _/get_user_id_ - OK - found successfully`);
+                            // console.log({ found });
+                            this.success(res, found);
+                        } else {
+                            console.log(`step 6 - _/get_user_id_ - FAIL - not found`);
+                            this.failed(res, 'no user found with this username and password');
+                        }
+                    } catch (error) {
+                        console.log('--------some error ------------');
+                        console.log({ error });
                     }
-                } catch (error) {
-                    console.log({ error });
-                }
 
-                // this.success(res,decoded.username)
+                    // this.success(res,decoded.username)
+                } else {
+                    // console.log(`step 3 - _/get_user_id_ - FAIL - decoded fail`);
+                    res.status(401).send('Login expired');
+                }
+            }) as any;
+        });
+
+        this.router.post('/authenticate', this.authenticate, async (req: Request<{}, {}, Partial<{}>>, res: Response) => {
+            const {
+                body: {},
+                params: {},
+            } = req;
+            console.log(`step 1 - _/authenticate_ - OK - start`);
+            const { payload } = req;
+            const username = payload?.username;
+            const password = payload?.password;
+            if (username && password) {
+                console.log(`step 2 - _/authenticate_ - OK - user found`);
+                this.success(res, {
+                    username: req.payload?.username,
+                    password: req.payload?.password,
+                });
             } else {
-                res.status(401).send('Login expired');
+                console.log(`step 2 - _/authenticate_ - FAIL - user not found`);
+                this.failed(res, 'username or password not found');
             }
         });
     };
